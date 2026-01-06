@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>文字報讀系統</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --text: #000000;
+  --line-bg: transparent;
+  --line-hover: #f1f5ff;
+  --line-reading-bg: #fff4cc;
+  --line-reading-border: #ffb300;
+  --toolbar-bg: #f4f4f4;
+  --toolbar-text: #000000;
+  --meta-text: #666666;
+  --border-color: #dddddd;
+  --button-bg: #f7f7f7;
+  --button-text: #000000;
+  --alt-bg: #f2f2f2;
+}
+
+body.dark {
+  --bg: #0f0f0f;
+  --text: #f0f0f0;
+  --line-bg: transparent;
+  --line-hover: #1f2937;
+  --line-reading-bg: #3a2f05;
+  --line-reading-border: #ffcc00;
+  --toolbar-bg: #1a1a1a;
+  --toolbar-text: #f0f0f0;
+  --meta-text: #aaaaaa;
+  --border-color: #333333;
+  --button-bg: #222222;
+  --button-text: #f0f0f0;
+  --alt-bg: #1b1b1b;
+}
+
+/* 全域 */
+body {
+  font-family: Microsoft JhengHei, 'PingFang TC', 'Noto Sans TC', sans-serif;
+  font-size: 18px;
+  background: var(--bg);
+  color: var(--text);
+  margin: 0;
+  padding: 0;
+}
+
+header {
+  padding: 14px 16px 8px;
+  border-bottom: 1px solid var(--border-color);
+}
+
+h1 {
+  font-size: 1.2em;
+  margin: 0 0 6px 0;
+}
+
+.meta {
+  font-size: 0.9em;
+  color: var(--meta-text);
+}
+
+/* 工具列 */
+.toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--toolbar-bg);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.toolbar label {
+  font-size: 0.9em;
+  color: var(--toolbar-text);
+}
+
+.toolbar select, .toolbar input[type="range"] {
+  vertical-align: middle;
+}
+
+.toolbar button {
+  padding: 6px 10px;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--button-bg);
+  color: var(--button-text);
+  cursor: pointer;
+}
+
+.toolbar button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.toolbar .spacer {
+  flex: 1;
+}
+
+/* 內容 */
+#content {
+  padding: 14px 16px 40px;
+  max-width: none;
+  margin: 0;
+}
+
+.line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: var(--line-bg);
+  margin: 2px 0;
+  cursor: pointer;
+  user-select: text;
+}
+
+.lineImage {
+  max-width: 160px;
+  max-height: 120px;
+  object-fit: contain;
+  border-radius: 8px;
+  margin-right: 8px;
+}
+
+.line:hover {
+  background: var(--line-hover);
+}
+
+.lineText { flex: 1; }
+
+
+.line.plain.even {
+  background: var(--alt-bg);
+}
+
+.line.reading {
+  background: var(--line-reading-bg);
+  outline: 2px solid var(--line-reading-border);
+}
+
+.gap {
+  height: 6px;
+}
+
+/* 大標題（[H] 行） */
+.title-main {
+  margin: 12px 0 4px;
+  padding: 4px 6px;
+  font-size: 1.25em;
+  font-weight: 700;
+  color: #2C7BE5;
+  background: transparent;
+}
+
+/* 小標題（[S] 行） */
+.title-sub {
+  margin: 8px 0 2px;
+  padding: 3px 6px;
+  font-size: 1.05em;
+  font-weight: 600;
+  color: #444444;
+  background: transparent;
+}
+
+body.dark .title-sub {
+  color: #dddddd;
+}
+
+
+/* ===== 錄音/比較（可選功能） ===== */
+.line {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  cursor: default;
+}
+.lineText { flex: 1; cursor: pointer; text-align: left; }
+.lineActions { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; margin-left: auto; }
+button.mini { padding: 4px 8px; border-radius: 10px; font-size: 0.95rem; }
+button.mini[disabled] { opacity: 0.45; cursor: not-allowed; }
+.line.recording { background: #fff3e6; outline: 2px solid #ffd2a8; }
+
+</style>
+</head>
+<body>
+<header>
+  <h1>文字報讀系統</h1>
+</header>
+
+<div class="toolbar">
+  <label>聲音：
+    <select id="voiceSelect"></select>
+  </label>
+
+  <label>語速：
+    <input id="rate" type="range" min="0.3" max="1.2" step="0.05" value="1.0" />
+    <span id="rateVal">1.0</span>
+  </label>
+
+  <label>字體大小：
+    <input id="fontSize" type="range" min="12" max="40" step="1" value="18" />
+    <span id="fontSizeVal">18</span>
+  </label>
+
+  <div class="spacer"></div>
+
+  <button id="playAllBtn">▶ 逐行連播</button>
+  <button id="pauseBtn">⏸ 暫停</button>
+  <button id="resumeBtn">⏯ 繼續</button>
+  <button id="stopBtn">⏹ 停止</button>
+  <button id="themeToggle">🌙/☀ 切換深淺色</button>
+</div>
+
+<div id="content">
+<div class="line plain" data-line-id="0"><span class="lineText">四、大個子，小個子</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="gap"></div>
+<div class="line plain even" data-line-id="1"><span class="lineText">大個子，小個子，</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="line plain" data-line-id="2"><span class="lineText">一起上課一起玩。</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="gap"></div>
+<div class="line plain even" data-line-id="3"><span class="lineText">兩個人，手拉手，</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="line plain" data-line-id="4"><span class="lineText">左看看，右找找。</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="gap"></div>
+<div class="line plain even" data-line-id="5"><span class="lineText">小個子，看到一隻大青蛙，</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="line plain" data-line-id="6"><span class="lineText">大個子，找到三隻小青蛙。</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+<div class="gap"></div>
+<div class="line plain even" data-line-id="7"><span class="lineText">小個子，大個子，看看找找好開心。</span><span class="lineActions"><button class="mini" type="button" data-act="record">🎙 錄音</button><button class="mini" type="button" data-act="compare" disabled>🔁 比較</button></span></div>
+</div>
+
+<script>
+(function(){
+  const synth = window.speechSynthesis;
+  const voiceSelect = document.getElementById('voiceSelect');
+  const rate = document.getElementById('rate');
+  const pitch = document.getElementById('pitch');
+  const rateVal = document.getElementById('rateVal');
+  const pitchVal = document.getElementById('pitchVal');
+  const fontSize = document.getElementById('fontSize');
+  const fontSizeVal = document.getElementById('fontSizeVal');
+  const themeBtn = document.getElementById('themeToggle');
+
+  let voices = [];
+  let isPlayingAll = false;
+  let playAllIndex = 0;
+  let currentNode = null;
+
+  function getLineText(node){
+    const t = node && node.querySelector ? node.querySelector('.lineText') : null;
+    return (t ? t.textContent : (node ? node.textContent : '')).trim();
+  }
+
+  function populateVoices() {
+    voices = synth.getVoices();
+    voiceSelect.innerHTML = "";
+    voices.forEach((v, i) => {
+      const opt = document.createElement('option');
+      opt.value = i;
+      opt.textContent = `${v.name} (${v.lang})`;
+      voiceSelect.appendChild(opt);
+    });
+    const zhIdx = voices.findIndex(v => /zh/i.test(v.lang));
+    if (zhIdx >= 0) voiceSelect.value = zhIdx;
+  }
+
+  populateVoices();
+  if (typeof speechSynthesis !== 'undefined' && speechSynthesis.onvoiceschanged !== undefined) {
+    speechSynthesis.onvoiceschanged = populateVoices;
+  }
+
+  function stopSpeak() {
+    if (synth.speaking || synth.pending) synth.cancel();
+    document.querySelectorAll('.line.reading').forEach(el => el.classList.remove('reading'));
+    currentNode = null;
+    isPlayingAll = false;
+    playAllIndex = 0;
+  }
+
+  function speak(text, node=null, onend=null) {
+    stopSpeak();
+    if (text === null || text === undefined) return;
+    text = String(text).trim();
+    if (!text) return;
+
+    const u = new SpeechSynthesisUtterance(text);
+
+    // 安全取得 voice / rate / pitch（避免缺少控制元件時整段 JS 中斷）
+    const voiceIdx = (voiceSelect && voiceSelect.value !== undefined && voiceSelect.value !== '') ? Number(voiceSelect.value) : 0;
+    const v = (voices && voices.length && Number.isFinite(voiceIdx)) ? voices[voiceIdx] : null;
+    if (v) u.voice = v;
+
+    const rateNum = (rate && rate.value !== undefined && rate.value !== '') ? Number(rate.value) : 1;
+    const pitchNum = (pitch && pitch.value !== undefined && pitch.value !== '') ? Number(pitch.value) : 1;
+    u.rate = (Number.isFinite(rateNum) && rateNum > 0) ? rateNum : 1;
+    u.pitch = (Number.isFinite(pitchNum) && pitchNum >= 0) ? pitchNum : 1;
+
+    u.onend = () => {
+      if (node) node.classList.remove('reading');
+      currentNode = null;
+      if (onend) onend();
+    };
+    u.onerror = () => {
+      if (node) node.classList.remove('reading');
+      currentNode = null;
+      if (onend) onend();
+    };
+    if (node) node.classList.add('reading');
+    currentNode = node;
+    synth.speak(u);
+  }
+
+  // 點行朗讀（只對一般行；標題不朗讀；錄音按鈕不觸發）
+  document.getElementById('content').addEventListener('click', (e) => {
+    const node = e.target.closest('.line');
+    if (!node) return;
+    if (e.target.closest('button')) return;
+    if (node.classList.contains('title-main') || node.classList.contains('title-sub')) return;
+    speak(getLineText(node), node);
+  });
+
+  // 朗讀選取文字
+  document.getElementById('content').addEventListener('mouseup', () => {
+    const sel = window.getSelection();
+    const text = sel ? sel.toString().trim() : "";
+    if (text) speak(text);
+  });
+
+  // 逐行連播
+  function playAll() {
+    const lines = Array.from(document.querySelectorAll('.line')).filter(el =>
+      !el.classList.contains('title-main') && !el.classList.contains('title-sub')
+    );
+    if (!lines.length) return;
+
+    isPlayingAll = true;
+    const curIdx = lines.findIndex(el => el.classList.contains('reading'));
+    playAllIndex = curIdx >= 0 ? curIdx : 0;
+
+    const step = () => {
+      if (!isPlayingAll) return;
+      if (playAllIndex >= lines.length) {
+        isPlayingAll = false;
+        return;
+      }
+      const el = lines[playAllIndex++];
+      const text = getLineText(el);
+      if (!text) { step(); return; }
+      speak(text, el, step);
+    };
+    step();
+  }
+
+  if (rate && rateVal) {
+    rate.addEventListener('input', () => rateVal.textContent = rate.value);
+  }
+  if (pitch && pitchVal) {
+    pitch.addEventListener('input', () => pitchVal.textContent = pitch.value);
+  }
+  if (fontSize && fontSizeVal) {
+    // initialize content font size (avoid changing toolbar layout to keep slider stable)
+    fontSizeVal.textContent = fontSize.value;
+    const contentEl = document.getElementById('content');
+    if (contentEl) contentEl.style.fontSize = fontSize.value + 'px';
+    fontSize.addEventListener('input', () => {
+      fontSizeVal.textContent = fontSize.value;
+      if (contentEl) contentEl.style.fontSize = fontSize.value + 'px';
+    });
+  }
+
+  themeBtn.addEventListener('click', () => {
+    document.body.classList.toggle('dark');
+  });
+
+  document.getElementById('playAllBtn').addEventListener('click', playAll);
+  document.getElementById('pauseBtn').addEventListener('click', () => {
+    if (synth.speaking && !synth.paused) synth.pause();
+  });
+  document.getElementById('resumeBtn').addEventListener('click', () => {
+    if (synth.paused) synth.resume();
+  });
+  document.getElementById('stopBtn').addEventListener('click', stopSpeak);
+
+  
+// ===== 錄音/比較（不評分：TTS → 錄音播放） =====
+const recordings = new Map(); // lineId -> { blob, url }
+let mediaStream = null;
+let activeRecorder = null;
+let activeRecordingLineId = null;
+let activeChunks = [];
+
+function getLineTextRC(lineEl) {
+  const t = lineEl.querySelector('.lineText');
+  return (t ? t.textContent : lineEl.textContent).trim();
+}
+
+function cleanupRecording(lineId) {
+  const rec = recordings.get(lineId);
+  if (rec && rec.url) URL.revokeObjectURL(rec.url);
+  recordings.delete(lineId);
+}
+
+function supportedMimeType() {
+  const candidates = [
+    'audio/webm;codecs=opus',
+    'audio/webm',
+    'audio/mp4',
+    'audio/ogg;codecs=opus',
+    'audio/ogg'
+  ];
+  if (typeof MediaRecorder === 'undefined') return '';
+  for (const t of candidates) {
+    try { if (MediaRecorder.isTypeSupported(t)) return t; } catch (_) {}
+  }
+  return '';
+}
+
+async function ensureStream() {
+  if (mediaStream) return mediaStream;
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+    alert('此瀏覽器不支援錄音（getUserMedia）。建議使用最新版 Chrome / Edge。');
+    throw new Error('getUserMedia not supported');
+  }
+  mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  return mediaStream;
+}
+
+function setLineButtonsState(lineEl) {
+  const id = Number(lineEl.dataset.lineId);
+  const recBtn = lineEl.querySelector('button[data-act="record"]');
+  const cmpBtn = lineEl.querySelector('button[data-act="compare"]');
+  const hasRec = recordings.has(id);
+  if (cmpBtn) cmpBtn.disabled = !hasRec;
+  if (recBtn) {
+    const isRecordingThis = (activeRecorder && activeRecordingLineId === id);
+    recBtn.textContent = isRecordingThis ? '⏹ 停止' : '🎙 錄音';
+  }
+}
+
+function stopActiveRecording() {
+  if (activeRecorder) {
+    try { activeRecorder.stop(); } catch (_) {}
+    activeRecorder = null;
+    activeRecordingLineId = null;
+    activeChunks = [];
+    document.querySelectorAll('.line.recording').forEach(el => el.classList.remove('recording'));
+    document.querySelectorAll('.line[data-line-id]').forEach(setLineButtonsState);
+  }
+}
+
+async function startRecording(lineEl) {
+  stopSpeak();
+  if (activeRecorder) stopActiveRecording();
+
+  const id = Number(lineEl.dataset.lineId);
+  const stream = await ensureStream();
+
+  activeChunks = [];
+  const mt = supportedMimeType();
+  let recorder;
+  try {
+    recorder = new MediaRecorder(stream, mt ? { mimeType: mt } : undefined);
+  } catch (e) {
+    alert('MediaRecorder 初始化失敗，可能是瀏覽器不支援此錄音格式。');
+    throw e;
+  }
+
+  activeRecorder = recorder;
+  activeRecordingLineId = id;
+  lineEl.classList.add('recording');
+  setLineButtonsState(lineEl);
+
+  recorder.ondataavailable = (ev) => {
+    if (ev.data && ev.data.size > 0) activeChunks.push(ev.data);
+  };
+
+  recorder.onstop = () => {
+    const blob = new Blob(activeChunks, { type: recorder.mimeType || 'audio/webm' });
+    cleanupRecording(id);
+    const url = URL.createObjectURL(blob);
+    recordings.set(id, { blob, url });
+
+    lineEl.classList.remove('recording');
+    activeRecorder = null;
+    activeRecordingLineId = null;
+    activeChunks = [];
+
+    setLineButtonsState(lineEl);
+  };
+
+  recorder.start();
+}
+
+function toggleRecord(lineEl) {
+  const id = Number(lineEl.dataset.lineId);
+  const isRecordingThis = (activeRecorder && activeRecordingLineId === id);
+  if (isRecordingThis) {
+    stopActiveRecording();
+    return;
+  }
+  startRecording(lineEl).catch(() => {
+    lineEl.classList.remove('recording');
+    activeRecorder = null;
+    activeRecordingLineId = null;
+    activeChunks = [];
+    setLineButtonsState(lineEl);
+  });
+}
+
+function playAudioAsync(url) {
+  return new Promise((resolve) => {
+    const a = new Audio(url);
+    a.onended = () => resolve();
+    a.onerror = () => resolve();
+    a.play().catch(() => resolve());
+  });
+}
+
+// 讓 speak 也可以 await
+let _speakResolve = null;
+const _origSpeak = speak;
+speak = function(text, node=null, onend=null) {
+  return _origSpeak(text, node, () => {
+    if (onend) onend();
+    if (_speakResolve) { try { _speakResolve(); } catch(_) {} _speakResolve = null; }
+  });
+};
+function speakAsync(text, node=null) {
+  return new Promise((resolve) => { _speakResolve = resolve; speak(text, node); });
+}
+
+// 事件：按鈕（錄音/比較）與文字點擊
+document.getElementById('content').addEventListener('click', async (e) => {
+  const btn = e.target.closest('button[data-act]');
+  if (btn) {
+    const lineEl = btn.closest('.line');
+    if (!lineEl) return;
+    e.stopPropagation();
+
+    const act = btn.dataset.act;
+
+    if (act === 'record') {
+      toggleRecord(lineEl);
+      setLineButtonsState(lineEl);
+      return;
+    }
+
+    if (act === 'compare') {
+      const id = Number(lineEl.dataset.lineId);
+      const rec = recordings.get(id);
+      if (!rec) return;
+
+      stopActiveRecording();
+      stopSpeak();
+      await speakAsync(getLineTextRC(lineEl), lineEl);
+      await playAudioAsync(rec.url);
+      return;
+    }
+  }
+
+  const textEl = e.target.closest('.lineText');
+  if (!textEl) return;
+  const lineEl = textEl.closest('.line');
+  if (!lineEl) return;
+  e.stopPropagation();
+  speak(getLineTextRC(lineEl), lineEl);
+}, true);
+
+window.addEventListener('beforeunload', () => {
+  for (const rec of recordings.values()) {
+    if (rec && rec.url) URL.revokeObjectURL(rec.url);
+  }
+});
+
+})();
+</script>
+</body>
+</html>
